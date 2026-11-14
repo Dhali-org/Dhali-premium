@@ -61,8 +61,9 @@ A claim is a signed approval to spend up to an amount from the visitor's payment
 `premium.js` runs on your page, like any third-party script, so:
 
 - **It's pinned.** The URL names a version, and the `integrity` hash makes the browser refuse to run the file if a single byte changes. Published versions never change.
+- **It's public.** The file is served by jsDelivr (or unpkg) from the published `dhali-premium` npm package, not from a Dhali server. Download it, or the package, and check its hash against the snippet and [`releases/integrity.json`](../releases/integrity.json).
 - **It's small** (about 100 lines, [`src/premium.js`](../src/premium.js)) and has no dependencies, so it's easy to review.
-- **You can host it yourself.** Copy the file to your own server and keep the integrity hash. Only `relay.html` has to come from pay.dhali.io.
+- **You can host it yourself.** Copy the file to your own server and keep the integrity hash. Only the relay (`relay.html`) has to come from pay.dhali.io, because it holds the visitor's claim on Dhali's origin.
 
 `relay.html` needs no trust from you. It runs in a cross-origin iframe, can't read or change your page, and can only send messages, which `premium.js` checks come from pay.dhali.io.
 

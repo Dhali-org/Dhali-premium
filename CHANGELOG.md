@@ -2,6 +2,11 @@
 
 Package versions. Each notes the `premium.js` version it ships (`premiumJs` in `package.json`). Published `premium.js` versions are immutable: partners pin them with an integrity hash.
 
+## Unreleased
+
+- The partner snippet loads `premium.js` from the npm package through jsDelivr (`cdn.jsdelivr.net/npm/dhali-premium@<version>/releases/v<premiumJs>/premium.js`) instead of pay.dhali.io. The file and its hash are unchanged.
+- `npm run verify:cdn` checks that jsDelivr and unpkg serve every frozen `premium.js` with its recorded hash. The publish workflow runs it after publishing.
+
 ## 1.0.0 (2026-11-14)
 
 `premium.js` v1.0.0.

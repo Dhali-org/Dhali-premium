@@ -7,18 +7,32 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ROOT = resolve(fileURLToPath(import.meta.url), "../..");
+const PKG = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
 // Version of premium.js, which names its published path. It is separate from
 // the package version: a relay-only fix is a new package release (for the
 // wallet to pick up) but must not mint a new premium.js URL.
-export const VERSION = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).premiumJs;
+export const VERSION = PKG.premiumJs;
 export const PREMIUM_PATH = `/premium/v${VERSION}/premium.js`;
+
+// Partners load premium.js from the published npm package through a public
+// CDN, so the file they run is the one anyone can download and check against
+// releases/integrity.json. Every package version contains every frozen
+// release, so a URL keeps working whatever package version it names.
+export const PACKAGE = PKG.name;
+export const PACKAGE_VERSION = PKG.version;
+export const CDNS = {
+  jsdelivr: "https://cdn.jsdelivr.net/npm",
+  unpkg: "https://unpkg.com",
+};
+export const cdnUrl = (cdn = "jsdelivr", version = VERSION, pkgVersion = PACKAGE_VERSION) =>
+  `${CDNS[cdn]}/${PACKAGE}@${pkgVersion}/releases/v${version}/premium.js`;
 export const SOURCE = {
   premium: join(ROOT, "src/premium.js"),
   relay: join(ROOT, "src/relay"),
 };
 
 // Every published premium.js, frozen at releases/v<version>/premium.js.
-// Partners pin these by integrity hash, so pay.dhali.io must keep serving
+// Partners pin these by integrity hash, so every package version must keep
 // all of them, and a published file must never change.
 export const RELEASES = join(ROOT, "releases");
 export const releases = () =>
@@ -72,8 +86,8 @@ export const RELEASE_HASHES = join(ROOT, "releases/integrity.json");
 export const recordedHashes = () =>
   existsSync(RELEASE_HASHES) ? JSON.parse(readFileSync(RELEASE_HASHES, "utf8")) : {};
 
-export const snippet = ({ origin = "https://pay.dhali.io", api = "YOUR-API-ID", path = "/your/premium/path" } = {}) =>
-  `<script src="${origin}${PREMIUM_PATH}"
+export const snippet = ({ src = cdnUrl(), api = "YOUR-API-ID", path = "/your/premium/path" } = {}) =>
+  `<script src="${src}"
         integrity="${integrity()}"
         crossorigin="anonymous" type="module" async></script>
 

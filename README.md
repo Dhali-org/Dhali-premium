@@ -84,7 +84,7 @@ Using the [reverse proxy](https://dhali.io/docs/creating-apis/) needs no code ch
 Add the script once per page, then one element per premium section:
 
 ```html
-<script src="https://pay.dhali.io/premium/v1.0.0/premium.js"
+<script src="https://cdn.jsdelivr.net/npm/dhali-premium@1.0.0/releases/v1.0.0/premium.js"
         integrity="sha384-eIiADuK4VnchTIWmxyyl8HWjzB/woYmitFYvfXAiX1RKMQQStC+Gvt0mbh0vkaLD"
         crossorigin="anonymous" type="module" async></script>
 
@@ -94,6 +94,8 @@ Add the script once per page, then one element per premium section:
 ```
 
 Keep the `integrity` attribute. It makes the browser refuse to run the script if the file ever changes.
+
+`premium.js` comes from the [`dhali-premium`](https://www.npmjs.com/package/dhali-premium) npm package, through jsDelivr. The same file is at `https://unpkg.com/dhali-premium@1.0.0/releases/v1.0.0/premium.js`, with the same hash, if you prefer unpkg. If your site has a Content-Security-Policy, allow the CDN in `script-src` and `https://pay.dhali.io` in `frame-src`.
 
 ## The `<dhali-premium>` element
 
@@ -167,7 +169,7 @@ document.addEventListener("dhali:unlocked", (e) => {
 
 - **The payment approval never reaches your page.** It lives in a frame on pay.dhali.io, so scripts on your page, including ads, analytics and compromised dependencies, can't spend it.
 - **Every payment needs a click inside the Dhali frame.** Your page can't trigger a payment.
-- **`premium.js` is pinned and hashed.** It's about 100 lines with no dependencies, and you can [review](src/premium.js) or self-host it.
+- **`premium.js` is pinned and hashed.** It's about 100 lines with no dependencies, and it's served from the public npm package, so you can [review](src/premium.js) exactly the file you load, or self-host it.
 - **Your endpoint answers only Dhali**, thanks to the header secret.
 
 Full details: [docs/how-it-works.md](docs/how-it-works.md).

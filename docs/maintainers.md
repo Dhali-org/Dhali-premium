@@ -64,17 +64,17 @@ npm run test:e2e    # full flow in headless Chrome against the sandbox (needs in
 
 There are two:
 
-- **`premiumJs`** in `package.json` is the version of `premium.js`, which names its URL (`/premium/v<premiumJs>/premium.js`). Published versions are immutable, because partners pin them with an integrity hash.
+- **`premiumJs`** in `package.json` is the version of `premium.js`, which names its path in the package (`releases/v<premiumJs>/premium.js`). Partners load it from the npm package through jsDelivr: `https://cdn.jsdelivr.net/npm/dhali-premium@<version>/releases/v<premiumJs>/premium.js`. Published versions are immutable, because partners pin them with an integrity hash.
 - **`version`** in `package.json` is the package version. The wallet pins it, so every change it should pick up, including relay-only fixes, is a new package version and a `v<version>` git tag.
 
 ## Releasing a new `premium.js`
 
 1. Bump `premiumJs` in `package.json`, then change `src/premium.js`.
 2. Run `npm run freeze`. It copies `src/premium.js` to `releases/v<premiumJs>/premium.js` and records its hash. Rerun it after every further change, with `--force`, until the version is deployed. After that, never overwrite it.
-3. Run `npm run snippet` and put the new snippet in the README's quick start. `npm test` fails until the README and the frozen copy match `src/premium.js`.
+3. Run `npm run snippet` and put the new snippet in the README's quick start. `npm test` fails until the README and the frozen copy match `src/premium.js`. The snippet's URL names the package version, so the snippet only works once that version is published.
 4. Release the package (below).
 
-Never delete a directory under `releases/`. Every version in it is served for as long as partners may pin it.
+Never delete a directory under `releases/`. Every package version ships all of them, so a partner's URL keeps working whichever package version it names.
 
 ## Releasing the package
 
@@ -82,7 +82,7 @@ Never delete a directory under `releases/`. Every version in it is served for as
 2. Run `npm test` (and `npm run test:e2e`).
 3. Commit, tag `v<version>` and push the tag.
 
-Pushing the tag runs [`.github/workflows/publish.yaml`](../.github/workflows/publish.yaml). It checks that the tag matches `version` in `package.json`, runs `npm test` and publishes the package to npm. It needs an npm automation token in the repository's (or organisation's) `NPM_PUBLISH_TOKEN` secret.
+Pushing the tag runs [`.github/workflows/publish.yaml`](../.github/workflows/publish.yaml). It checks that the tag matches `version` in `package.json`, runs `npm test`, publishes the package to npm, and then runs `npm run verify:cdn`, which checks that jsDelivr and unpkg serve every frozen `premium.js` with its recorded hash. It needs an npm automation token in the repository's (or organisation's) `NPM_PUBLISH_TOKEN` secret.
 
 Relay changes (`src/relay/`) need no new `premium.js`. The relay is loaded by URL with no hash, so changes reach every partner when the wallet deploys the new package. Keep its message format backwards compatible with every published `premium.js`.
 
@@ -91,22 +91,24 @@ Relay changes (`src/relay/`) need no new `premium.js`. The relay is loaded by UR
 The Dhali-wallet repo depends on this package through npm:
 
 ```json
-"devDependencies": { "dhali-premium": "github:Dhali-org/Dhali-premium#semver:^1.0.0" }
+"devDependencies": { "dhali-premium": "^1.0.0" }
 ```
 
 Its deploy workflows run `npm ci` and then `npx dhali-premium install web/premium --env <prod|staging>` before `flutter build web`, so `web/premium/` is generated, not committed. To deploy a new package version, in Dhali-wallet:
 
 ```sh
-npm install dhali-premium@github:Dhali-org/Dhali-premium#semver:^1.1.0   # or: npm update dhali-premium
+npm install dhali-premium@^1.1.0   # or: npm update dhali-premium
 git commit package.json package-lock.json
 ```
 
-`package-lock.json` pins the exact commit, so builds are reproducible until the lock file changes.
+`package-lock.json` pins the exact version and its hash, so builds are reproducible until the lock file changes.
+
+pay.dhali.io also serves `premium.js` at `/premium/v<premiumJs>/premium.js`, as a fallback. The published snippet doesn't use it.
 
 The wallet also holds the parts that are wallet code or hosting config:
 
 - **`lib/wallet_widgets/account_view_widget.dart`:** `returnClaimToOpener()`, called from `showPaymentClaimSuccessDialog`. If the relay opened the wallet, the wallet posts the new claim to the relay origin (its own, or `PREMIUM_RELAY_ORIGIN`) and closes once the relay confirms receipt. Using the wallet directly is unchanged.
-- **`firebase*.json`:** `Access-Control-Allow-Origin: *` on `/premium/**/*.js`, because partners load `premium.js` with an integrity hash, which needs CORS. A strict `Content-Security-Policy` on `/premium/relay.html`: only its own scripts and styles, and network access only to that environment's proxy and metadata service.
+- **`firebase*.json`:** `Access-Control-Allow-Origin: *` on `/premium/**/*.js`, for the fallback copy of `premium.js` (an integrity hash needs CORS). A strict `Content-Security-Policy` on `/premium/relay.html`: only its own scripts and styles, and network access only to that environment's proxy and metadata service.
 
 Endpoints live in `ENVIRONMENTS` in `scripts/release.mjs`. If you change an origin there, update the matching `connect-src` in the wallet's `firebase*.json` (`relayCsp()` prints the expected value).
 
@@ -117,7 +119,7 @@ The relay shares an origin with the wallet, so a script injected into the relay 
 1. Create a Firebase hosting site for the new origin that serves `/premium/` with the same headers.
 2. Set `walletUrl` to `https://pay.dhali.io/` (and the staging wallet URL) in `ENVIRONMENTS`. The relay only trusts claims from that origin.
 3. Build the wallet with `--dart-define=PREMIUM_RELAY_ORIGIN=https://premium.dhali.io`, so it addresses claims there.
-4. Release a new `premium.js` whose default `RELAY_ORIGIN` is the new origin. Earlier versions keep working while pay.dhali.io still serves `/premium/`.
+4. Release a new `premium.js` whose default `RELAY_ORIGIN` is the new origin. Earlier versions keep working while pay.dhali.io still serves `/premium/relay.html`.
 
 Hosting requirements:
 

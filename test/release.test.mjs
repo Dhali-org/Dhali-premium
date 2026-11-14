@@ -7,13 +7,19 @@ import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 import {
-  ENVIRONMENTS, PREMIUM_PATH, RELAY_FILES, RELEASES, ROOT, SOURCE, VERSION,
+  ENVIRONMENTS, PREMIUM_PATH, cdnUrl, RELAY_FILES, RELEASES, ROOT, SOURCE, VERSION,
   integrity, recordedHashes, relayConfig, relayCsp, releases,
 } from "../scripts/release.mjs";
 
+test("CDN URL names the package version and the frozen premium.js", () => {
+  assert.equal(cdnUrl("jsdelivr", "1.0.0", "1.2.3"), "https://cdn.jsdelivr.net/npm/dhali-premium@1.2.3/releases/v1.0.0/premium.js");
+  assert.equal(cdnUrl("unpkg", "1.0.0", "1.2.3"), "https://unpkg.com/dhali-premium@1.2.3/releases/v1.0.0/premium.js");
+  assert.ok(cdnUrl().endsWith(`/releases/v${VERSION}/premium.js`));
+});
+
 test("README snippet pins the current version and its integrity hash", () => {
   const readme = readFileSync(join(ROOT, "README.md"), "utf8");
-  assert.ok(readme.includes(`https://pay.dhali.io${PREMIUM_PATH}`), `README should load ${PREMIUM_PATH}`);
+  assert.ok(readme.includes(cdnUrl()), `README should load ${cdnUrl()}: run \`npm run snippet\``);
   assert.ok(readme.includes(integrity()), "README integrity hash is stale: run `npm run snippet`");
 });
 
