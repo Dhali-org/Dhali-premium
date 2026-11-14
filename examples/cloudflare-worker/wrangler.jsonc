@@ -1,0 +1,15 @@
+{
+  "name": "my-premium-content",
+  "main": "worker.js",
+  "compatibility_date": "2025-06-01",
+  "assets": {
+    "directory": "./premium-content",
+    "binding": "ASSETS",
+    // Run the secret check before any file is served.
+    "run_worker_first": true
+  },
+  "vars": {
+    // Must match the header name you set in app.dhali.io.
+    "SECRET_HEADER": "x-partner-secret"
+  }
+}

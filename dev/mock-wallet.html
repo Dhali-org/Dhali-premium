@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mock Payment Terminal</title>
+  <style>
+    :root {
+      --bg: #f5f6f8; --card: #ffffff; --text: #111827; --muted: #6b7280;
+      --line: #e5e7eb; --accent: #2563eb; --accent-text: #fff; --banner: #fef3c7; --banner-text: #78350f;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #0f1115; --card: #181b21; --text: #e5e7eb; --muted: #9ca3af;
+        --line: #2a2f37; --accent: #3b82f6; --banner: #422006; --banner-text: #fde68a;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+      font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .banner { background: var(--banner); color: var(--banner-text); padding: 8px 16px; font-size: 13px; }
+    main { max-width: 440px; margin: 0 auto; padding: 20px 16px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 14px; }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    h2 { font-size: 15px; margin: 0 0 10px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 14px; }
+    dt { color: var(--muted); } dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+    label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+    input { width: 100%; font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+    button { font: inherit; font-weight: 600; margin-top: 12px; width: 100%; padding: 10px; border-radius: 8px; border: 0;
+      background: var(--accent); color: var(--accent-text); cursor: pointer; }
+    textarea { width: 100%; height: 80px; font: 12px ui-monospace, monospace; margin-top: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; }
+    a { color: var(--accent); }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="banner">Mock of pay.dhali.io for local testing. No real XRP moves.</div>
+  <main>
+    <div class="card">
+      <h1 id="api-name">Loading…</h1>
+      <div class="muted" id="api-price"></div>
+    </div>
+
+    <div class="card" id="connect" hidden>
+      <h2>Connect a wallet</h2>
+      <div class="muted">In the real terminal: Xaman, Crossmark or GemWallet.</div>
+      <button id="connect-btn" type="button">Connect mock wallet</button>
+    </div>
+
+    <div class="card" id="open" hidden>
+      <h2>Open a payment channel</h2>
+      <label for="deposit">Deposit (XRP)</label>
+      <input id="deposit" type="number" min="1" step="1" value="5">
+      <button id="open-btn" type="button">Open channel</button>
+    </div>
+
+    <div class="card" id="claim" hidden>
+      <h2>Payment channel</h2>
+      <dl>
+        <dt>Deposited</dt><dd id="deposited"></dd>
+        <dt>Used so far</dt><dd id="used"></dd>
+        <dt>Last approved</dt><dd id="authorised"></dd>
+      </dl>
+      <label for="amount">Amount to approve (XRP)</label>
+      <input id="amount" type="number" min="0.01" step="0.01" value="0.25">
+      <button id="claim-btn" type="button">Get payment claim</button>
+    </div>
+
+    <div class="card" id="done" hidden>
+      <h2>Payment claim created</h2>
+      <div class="muted" id="done-note"></div>
+      <textarea id="claim-out" readonly></textarea>
+    </div>
+
+    <p class="muted"><a href="#" id="reset">Reset mock wallet</a></p>
+  </main>
+
+  <script src="../premium/config.js"></script>
+  <script>
+    const cfg = window.DHALI_RELAY_CONFIG;
+    const uuid = (new URLSearchParams(location.search).get("uuids") || "").split(",")[0];
+    const KEY = "dhali.mockWallet";
+    const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
+    const save = (s) => { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch {} };
+    const xrp = (drops) => `${+(Number(drops) / 1e6).toFixed(6)} XRP`;
+    const $ = (id) => document.getElementById(id);
+
+    // Same behaviour as the proposed pay.dhali.io patch: hand the claim to a
+    // same-origin opener (the relay) and close once it confirms receipt.
+    function returnClaimToOpener(claim) {
+      if (!window.opener) return false;
+      window.addEventListener("message", (e) => {
+        if (e.origin !== location.origin) return;
+        try {
+          if (JSON.parse(e.data).type === "dhali:claim-received") window.close();
+        } catch {}
+      });
+      window.opener.postMessage(JSON.stringify({ type: "dhali:payment-claim", claim }), location.origin);
+      return true;
+    }
+
+    async function used(channelId) {
+      try {
+        const r = await fetch(`${cfg.devChannelsUrl}/${channelId}`);
+        return (await r.json()).to_claim || 0;
+      } catch { return 0; }
+    }
+
+    async function render() {
+      const s = load();
+      $("connect").hidden = !!s.account;
+      $("open").hidden = !s.account || !!s.channelId;
+      $("claim").hidden = !s.channelId;
+      if (s.channelId) {
+        $("deposited").textContent = xrp(s.deposited);
+        $("used").textContent = xrp(await used(s.channelId));
+        $("authorised").textContent = xrp(s.authorised || 0);
+      }
+    }
+
+    $("connect-btn").onclick = () => {
+      save({ ...load(), account: "rMockVisitor" + Math.random().toString(36).slice(2, 10) });
+      render();
+    };
+    $("open-btn").onclick = () => {
+      const deposit = Math.round(Number($("deposit").value) * 1e6);
+      const id = [...crypto.getRandomValues(new Uint8Array(32))].map((b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+      save({ ...load(), channelId: id, deposited: deposit, authorised: 0 });
+      render();
+    };
+    $("claim-btn").onclick = async () => {
+      const s = load();
+      // As in the real terminal: new authorisation = amount used so far + amount entered.
+      const authorised = Math.min(Math.round((await used(s.channelId)) + Number($("amount").value) * 1e6), s.deposited);
+      save({ ...s, authorised });
+      const claim = btoa(JSON.stringify({
+        version: "2",
+        account: s.account,
+        protocol: "XRPL.MAINNET",
+        currency: { code: "XRP", scale: 6 },
+        destination_account: "rDhaliMockDestination",
+        authorized_to_claim: String(authorised),
+        signature: "MOCK" + Math.random().toString(16).slice(2),
+        channel_id: s.channelId,
+      }));
+      $("claim-out").value = claim;
+      $("done").hidden = false;
+      $("done-note").textContent = returnClaimToOpener(claim)
+        ? "Returning you to the site…"
+        : "Copy this into the Payment-Claim header of your requests.";
+      render();
+    };
+    $("reset").onclick = (e) => { e.preventDefault(); try { localStorage.removeItem(KEY); } catch {} ; $("done").hidden = true; render(); };
+
+    (async () => {
+      try {
+        const meta = await (await fetch(`${cfg.metadataUrl}/${uuid}`)).json();
+        $("api-name").textContent = `Pay for: ${meta.name}`;
+        $("api-price").textContent = `${xrp(meta.asset_earning_rate)} per request`;
+      } catch {
+        $("api-name").textContent = "Unknown API";
+      }
+      render();
+    })();
+  </script>
+</body>
+</html>

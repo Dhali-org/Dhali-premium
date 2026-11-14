@@ -1,0 +1,49 @@
+{
+  "name": "dhali-premium",
+  "version": "1.0.0",
+  "premiumJs": "1.0.0",
+  "description": "Premium sections for XRPL websites: visitors unlock content with XRP, paid through Dhali.",
+  "keywords": [
+    "xrpl",
+    "xrp",
+    "dhali",
+    "paywall",
+    "micropayments",
+    "web-component"
+  ],
+  "license": "MIT",
+  "homepage": "https://dhali.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dhali-org/Dhali-premium.git"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/premium.js",
+    "./install": "./scripts/install.mjs"
+  },
+  "bin": {
+    "dhali-premium": "bin/dhali-premium.mjs"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "releases/",
+    "scripts/install.mjs",
+    "scripts/release.mjs"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node dev/start.mjs",
+    "build": "node scripts/build.mjs",
+    "freeze": "node scripts/freeze.mjs",
+    "snippet": "node scripts/snippet.mjs",
+    "test": "node --test test/*.test.mjs",
+    "test:e2e": "node test/e2e/run.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "24.10.0"
+  }
+}

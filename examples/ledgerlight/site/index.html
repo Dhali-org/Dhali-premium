@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ledgerlight · XRPL token checks</title>
+  <!-- Dev only: points the widget at the local relay. In production it defaults to https://pay.dhali.io -->
+  <meta name="dhali-relay-origin" content="{{RELAY_ORIGIN}}">
+  <!-- ===== The partner's whole integration: one script tag ===== -->
+  <script src="{{PREMIUM_SRC}}" integrity="{{PREMIUM_SRI}}" crossorigin="anonymous" type="module" async></script>
+  <style>
+    :root {
+      --bg: #fbfaf7; --surface: #ffffff; --text: #1c1b18; --muted: #6f6b62; --line: #e7e3da;
+      --brand: #0f766e; --ok: #15803d; --ok-bg: #ecfdf3; --warn: #b45309; --warn-bg: #fff7e6;
+      --bad: #b91c1c; --bad-bg: #fef2f2; --info: #475569; --info-bg: #f1f5f9;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #12110f; --surface: #1b1a17; --text: #ece9e2; --muted: #a29d92; --line: #2e2c27;
+        --brand: #2dd4bf; --ok: #4ade80; --ok-bg: #0f2a1a; --warn: #fbbf24; --warn-bg: #2d2210;
+        --bad: #f87171; --bad-bg: #2d1414; --info: #cbd5e1; --info-bg: #1e2530;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+      font: 16px/1.55 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
+    header, main, footer { max-width: 860px; margin: 0 auto; padding: 0 16px; }
+    header { padding-top: 32px; padding-bottom: 8px; }
+    .logo { font: 700 22px/1 system-ui, sans-serif; letter-spacing: -.02em; color: var(--brand); }
+    .tagline { color: var(--muted); margin: 6px 0 0; }
+    h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.15; margin: 28px 0 8px; letter-spacing: -.01em; }
+    .lede { color: var(--muted); max-width: 60ch; margin: 0 0 28px; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 18px; }
+    .card h2 { margin: 0; font-size: 22px; }
+    .meta { color: var(--muted); font: 13px/1.4 system-ui, sans-serif; margin: 2px 0 14px; word-break: break-all; }
+    .teaser { color: var(--muted); margin: 0 0 10px; }
+    form { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; font-family: system-ui, sans-serif; }
+    form input { flex: 1 1 220px; font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+    form input.cur { flex: 0 1 120px; }
+    form button { font: 600 15px system-ui, sans-serif; padding: 10px 16px; border-radius: 10px; border: 0; background: var(--brand); color: var(--bg); cursor: pointer; }
+    footer { color: var(--muted); font: 13px system-ui, sans-serif; padding-top: 12px; padding-bottom: 40px; }
+
+    /* Styles for the premium report. The content is inserted into this page,
+       so the site's own CSS applies to it. */
+    .risk-report { font-family: system-ui, sans-serif; margin-bottom: 8px; }
+    .verdict { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 12px 14px; border-radius: 10px; margin-bottom: 12px; }
+    .verdict strong { font-size: 17px; }
+    .verdict span { color: var(--muted); font-size: 13px; }
+    .verdict.ok { background: var(--ok-bg); } .verdict.ok strong { color: var(--ok); }
+    .verdict.warn { background: var(--warn-bg); } .verdict.warn strong { color: var(--warn); }
+    .verdict.bad { background: var(--bad-bg); } .verdict.bad strong { color: var(--bad); }
+    .checks { list-style: none; padding: 0; margin: 0 0 14px; display: grid; gap: 8px; }
+    .checks li { padding-left: 26px; position: relative; font-size: 14px; }
+    .checks li b { display: block; font-size: 15px; }
+    .checks li span { color: var(--muted); }
+    .checks li::before { position: absolute; left: 0; top: 1px; width: 18px; height: 18px; border-radius: 50%;
+      display: grid; place-items: center; font: 700 11px/1 system-ui; }
+    .checks li.ok::before { content: "✓"; color: var(--ok); background: var(--ok-bg); }
+    .checks li.warn::before { content: "!"; color: var(--warn); background: var(--warn-bg); }
+    .checks li.bad::before { content: "✕"; color: var(--bad); background: var(--bad-bg); }
+    .checks li.info::before { content: "i"; color: var(--info); background: var(--info-bg); }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 0 0 10px; }
+    .stats div { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+    .stats dt { color: var(--muted); font-size: 12px; }
+    .stats dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .fineprint { color: var(--muted); font-size: 12px; margin: 0; }
+    .quick { font-family: system-ui, sans-serif; display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+    .quick b { color: var(--brand); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">Ledgerlight</div>
+    <p class="tagline">Plain-language token checks for the XRP Ledger</p>
+  </header>
+
+  <main>
+    <h1>Know what you're buying before you set a trust line.</h1>
+    <p class="lede">Every token has an issuer, and issuers can keep a lot of control: minting more, freezing holdings, clawing tokens back. Our reports read that straight from the ledger.</p>
+
+    <form id="lookup">
+      <input name="issuer" placeholder="Issuer address (r…)" required pattern="r[1-9A-HJ-NP-Za-km-z]{24,34}">
+      <input name="currency" class="cur" placeholder="Code, e.g. SOLO" required>
+      <button type="submit">Check token</button>
+    </form>
+
+    <div id="cards">
+      <article class="card">
+        <h2>RLUSD</h2>
+        <div class="meta">Issuer rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De</div>
+        <!-- ===== A premium section: one element ===== -->
+        <dhali-premium api="{{API_UUID}}" path="/reports/rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De/RLUSD" label="Unlock report">
+          <p class="teaser">Full report: supply lock, clawback, freeze, fees, holders and AMM liquidity.</p>
+        </dhali-premium>
+      </article>
+
+      <article class="card">
+        <h2>SOLO</h2>
+        <div class="meta">Issuer rsoLo2S1kiGeCcn6hCUXVrCpGMWLrRrLZz</div>
+        <dhali-premium api="{{API_UUID}}" path="/reports/rsoLo2S1kiGeCcn6hCUXVrCpGMWLrRrLZz/SOLO" label="Unlock report">
+          <p class="teaser">Full report: supply lock, clawback, freeze, fees, holders and AMM liquidity.</p>
+        </dhali-premium>
+      </article>
+
+      <article class="card">
+        <h2>CORE <span class="meta">· quick score (JSON + template)</span></h2>
+        <div class="meta">Issuer rcoreNywaoz2ZCQ8Lg2EbSLnGuRBmun6D</div>
+        <dhali-premium api="{{API_UUID}}" path="/reports/rcoreNywaoz2ZCQ8Lg2EbSLnGuRBmun6D/CORE.json" format="json" label="Unlock score">
+          <p class="teaser">A one-line verdict with holder and liquidity figures.</p>
+          <template>
+            <div class="quick">
+              <span>Verdict: <b>{{verdict.label}}</b></span>
+              <span>Holders: <b>{{stats.holders}}</b></span>
+              <span>Ledger: <b>{{ledgerIndex}}</b></span>
+            </div>
+          </template>
+        </dhali-premium>
+      </article>
+    </div>
+  </main>
+
+  <footer>Reports are paid per check in XRP from your own wallet. No account needed.</footer>
+
+  <script>
+    const API = "{{API_UUID}}";
+    document.getElementById("lookup").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const issuer = f.get("issuer").trim();
+      const currency = f.get("currency").trim();
+      const card = document.createElement("article");
+      card.className = "card";
+      card.innerHTML = `<h2></h2><div class="meta"></div>
+        <dhali-premium api="${API}" label="Unlock report">
+          <p class="teaser">Full report: supply lock, clawback, freeze, fees, holders and AMM liquidity.</p>
+        </dhali-premium>`;
+      card.querySelector("h2").textContent = currency;
+      card.querySelector(".meta").textContent = `Issuer ${issuer}`;
+      card.querySelector("dhali-premium").setAttribute(
+        "path", `/reports/${encodeURIComponent(issuer)}/${encodeURIComponent(currency)}`);
+      document.getElementById("cards").prepend(card);
+    });
+  </script>
+</body>
+</html>

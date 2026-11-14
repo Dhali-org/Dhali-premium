@@ -1,0 +1,42 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check the tag matches package.json
+        run: |
+          # GITHUB_REF_NAME is the tag, e.g. "v1.2.3". The version is bumped and
+          # committed before tagging (docs/maintainers.md), so a mismatch means
+          # the wrong commit was tagged. Fail rather than publish it.
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p 'require("./package.json").version')"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match package.json version $PKG_VERSION"
+            exit 1
+          fi
+
+      - name: Run tests
+        run: npm test
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
