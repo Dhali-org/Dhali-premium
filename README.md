@@ -10,8 +10,6 @@ Add premium sections to your website that visitors unlock with XRP, straight fro
 
 The visitor sees your teaser and an **Unlock · 0.05 XRP** button. When they click, they approve a payment in the Dhali wallet. Your premium content then replaces the teaser, styled by your own CSS. Later unlocks on your site take one click.
 
-> **Status: pre-release.** The hosted files go live on pay.dhali.io with the next wallet release. Until then, try the whole flow locally with [`npm run dev`](#try-it-locally).
-
 ## Contents
 
 - [How it works](#how-it-works)
