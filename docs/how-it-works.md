@@ -30,7 +30,7 @@ sequenceDiagram
 
 | Piece | Served from | Job |
 |---|---|---|
-| `premium.js` | pay.dhali.io (pinned version, integrity hash) | Defines `<dhali-premium>`, adds the Unlock button frame, and inserts the content it receives into your page. It never sees the payment claim. |
+| `premium.js` | jsDelivr or unpkg, from the npm package (pinned version, integrity hash) | Defines `<dhali-premium>`, adds the Unlock button frame, and inserts the content it receives into your page. It never sees the payment claim. |
 | `relay.html` | pay.dhali.io, inside an iframe | Shows the button and price, keeps the visitor's claim, calls the Dhali proxy and passes the response back. |
 | pay.dhali.io | pay.dhali.io, in a popup | The Dhali wallet. The visitor connects a wallet, opens or tops up a payment channel and approves an amount. The wallet then hands the claim to the relay. |
 | Dhali proxy | run.api.dhali.io | Checks the claim, charges for the request and forwards it to your endpoint with your header secret. |
@@ -62,7 +62,7 @@ A claim is a signed approval to spend up to an amount from the visitor's payment
 
 - **It's pinned.** The URL names a version, and the `integrity` hash makes the browser refuse to run the file if a single byte changes. Published versions never change.
 - **It's public.** The file is served by jsDelivr (or unpkg) from the published `dhali-premium` npm package, not from a Dhali server. Download it, or the package, and check its hash against the snippet and [`releases/integrity.json`](../releases/integrity.json).
-- **It's small** (about 100 lines, [`src/premium.js`](../src/premium.js)) and has no dependencies, so it's easy to review.
+- **It's small** (about 130 lines, [`src/premium.js`](../src/premium.js)) and has no dependencies, so it's easy to review.
 - **You can host it yourself.** Copy the file to your own server and keep the integrity hash. Only the relay (`relay.html`) has to come from pay.dhali.io, because it holds the visitor's claim on Dhali's origin.
 
 `relay.html` needs no trust from you. It runs in a cross-origin iframe, can't read or change your page, and can only send messages, which `premium.js` checks come from pay.dhali.io.
@@ -76,5 +76,5 @@ Your base URL is public. Anyone who finds it could fetch the content directly an
 ## Costs and limits
 
 - **The visitor approves slightly more than the price.** Dhali checks each claim against a worst-case cost. The actual charge is the price plus the compute used, usually close to the listed price.
-- **Each site needs its own approval**, because of per-site isolation. The visitor's payment channel is reused, so there's no new ledger transaction.
+- **Each site needs its own approval**, because of per-site isolation. The visitor's payment channel is reused, so there's no new on-chain transaction.
 - **Popups:** the first unlock opens a popup in response to the click. If a browser blocks it, the button says so.

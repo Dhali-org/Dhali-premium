@@ -7,4 +7,4 @@
 | [`express/`](express/) | Middleware that protects premium routes in an existing Node.js app. |
 | [`fastapi/`](fastapi/) | A dependency that protects premium routes in an existing Python app. |
 
-Every backend example does the same job: it answers only requests that carry the header secret, which the Dhali proxy adds for you. See [Protect your endpoint](../README.md#2-protect-your-endpoint).
+Every backend example does the same job: it answers only requests that carry the header secret, which the Dhali proxy adds for you. See [Get started](../README.md#1-serve-your-premium-content).

@@ -1,6 +1,8 @@
 # Dhali Premium Sections
 
-Add premium sections to your website that visitors unlock with XRP, straight from their own wallet. Visitors don't need an account or a subscription, and you don't run any payment code.
+Sell individual sections of your website for crypto. Visitors pay from their own wallet in a click, with no account or subscription. You don't run any payment code.
+
+Supported currencies include XRP on the XRP Ledger, XAH on Xahau, and USDC, RLUSD and ETH on Ethereum.
 
 ```html
 <dhali-premium api="YOUR-API-ID" path="/reports/rlusd">
@@ -8,78 +10,45 @@ Add premium sections to your website that visitors unlock with XRP, straight fro
 </dhali-premium>
 ```
 
-The visitor sees your teaser and an **Unlock · 0.05 XRP** button. When they click, they approve a payment in the Dhali wallet. Your premium content then replaces the teaser, styled by your own CSS. Later unlocks on your site take one click.
-
-## Contents
-
-- [How it works](#how-it-works)
-- [Quick start](#quick-start)
-- [The `<dhali-premium>` element](#the-dhali-premium-element)
-- [Response formats](#response-formats)
-- [Styling](#styling)
-- [Events](#events)
-- [Pricing](#pricing)
-- [Security](#security)
-- [Browser support](#browser-support)
-- [Try it locally](#try-it-locally)
-- [Examples](#examples)
-- [FAQ](#faq)
+Visitors see your teaser and an **Unlock · 0.05 XRP** button, priced in whichever currency you choose. After they pay, your premium content replaces the teaser, styled by your own CSS.
 
 ## How it works
 
-1. You register your premium endpoint with [Dhali](https://app.dhali.io) as an API, with a price per request.
-2. You wrap a short teaser of your premium content in a `<dhali-premium>` tag. Visitors see the teaser, with an Unlock button added below it.
-3. A visitor clicks Unlock. On their first unlock on your site, the Dhali wallet opens in a popup at [pay.dhali.io](https://pay.dhali.io). There they open an XRP payment channel, or reuse one they already have, and authorise Dhali to spend up to an amount from it.
-4. Dhali checks the payment, fetches the content from your endpoint and hands it to the page.
-5. You're paid in XRP for every unlock.
+1. You put your premium content behind a URL and register it with [Dhali](https://app.dhali.io), setting a price and currency.
+2. You wrap a teaser in a `<dhali-premium>` tag on your page.
+3. A visitor clicks **Unlock** and approves the payment in the Dhali wallet. The first time, this opens a popup; after that it's one click.
+4. Dhali takes the payment, fetches your content and shows it on the page. You're paid for every unlock.
 
-The visitor's payment approval stays inside a Dhali frame and never touches your page. See [how it works](docs/how-it-works.md) for the details.
+More detail: [How it works](docs/how-it-works.md).
 
-## Quick start
+## Get started
 
-### 1. Create a premium endpoint
+### 1. Serve your premium content
 
-Any URL that returns your premium content works, either as an HTML fragment or as JSON. For example:
+Put your premium content at a URL, as an HTML fragment (or JSON). One URL can serve many sections, one per path:
 
 ```
-GET https://premium.your-site.example/reports/rlusd   →   <section>…full report…</section>
+https://premium.your-site.example/reports/rlusd   →   <section>…full report…</section>
 ```
 
-The part after your base URL is the `path` you'll use on the page. One endpoint can serve any number of sections.
-
-### 2. Protect your endpoint
-
-The Dhali proxy adds a secret header to every request it forwards. Refuse requests without it, so nobody can skip payment by calling your endpoint directly:
-
-```js
-// Express. See examples/ for Cloudflare Workers and FastAPI.
-import { requireDhali } from "./require-dhali.js";
-app.use("/reports", requireDhali());   // 403 unless x-partner-secret matches DHALI_SECRET
-```
-
-Pick a header name and a long random value, for example from `openssl rand -hex 32`.
+Make it accept only requests from Dhali, so nobody can skip payment. Dhali adds a secret header to every request; refuse requests without it. Pick a ready-made example:
 
 | You have | Use |
 |---|---|
 | Static HTML files, no server | [Cloudflare Worker](examples/cloudflare-worker/) |
-| A Node.js app | [Express middleware](examples/express/) |
-| A Python app | [FastAPI dependency](examples/fastapi/) |
+| A Node.js app | [Express](examples/express/) |
+| A Python app | [FastAPI](examples/fastapi/) |
 
-### 3. Register it with Dhali
+### 2. Register it with Dhali
 
-1. Open [app.dhali.io](https://app.dhali.io) and link your XRPL wallet. Your earnings go to this wallet.
+1. Open [app.dhali.io](https://app.dhali.io) and link your wallet. Your earnings go here.
 2. Go to **My Assets** → **Create**, open the new API and click **Edit**.
-3. Set:
-   - **Base URL:** your endpoint, e.g. `https://premium.your-site.example`
-   - **Pricing:** the XRP charged per unlock
-   - **Header secret:** the header name and value from step 2
-4. Save, and copy the API's ID from its endpoint URL (`https://run.api.dhali.io/<api-id>`).
+3. Set the **Base URL** (your URL from step 1), the **Pricing** (currency and price per unlock), and the **Header secret** (a name and a long random value, e.g. from `openssl rand -hex 32`).
+4. Save, and copy the API's ID from its endpoint URL: `https://run.api.dhali.io/<api-id>`.
 
-Using the [reverse proxy](https://dhali.io/docs/creating-apis/) needs no code changes on your side.
+### 3. Add it to your page
 
-### 4. Add it to your page
-
-Add the script once per page, then one element per premium section:
+Add the script once, then one element per premium section:
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/dhali-premium@1.0.0/releases/v1.0.0/premium.js"
@@ -91,132 +60,48 @@ Add the script once per page, then one element per premium section:
 </dhali-premium>
 ```
 
-Keep the `integrity` attribute. It makes the browser refuse to run the script if the file ever changes.
-
-`premium.js` comes from the [`dhali-premium`](https://www.npmjs.com/package/dhali-premium) npm package, through jsDelivr. The same file is at `https://unpkg.com/dhali-premium@1.0.0/releases/v1.0.0/premium.js`, with the same hash, if you prefer unpkg. If your site has a Content-Security-Policy, allow the CDN in `script-src` and `https://pay.dhali.io` in `frame-src`.
-
-## The `<dhali-premium>` element
-
-| Attribute | Required | Description |
-|---|---|---|
-| `api` | yes | Your Dhali API's ID. |
-| `path` | no | Appended to your base URL. Defaults to `/`. Paths can't leave your API: `..` segments that would reach another API are refused. |
-| `format` | no | `html` (default) or `json`. See [Response formats](#response-formats). |
-| `label` | no | Button text. Defaults to `Unlock`. The price is added automatically: **Unlock report · 0.05 XRP**. |
-
-- **The element's content is the teaser.** Everyone sees it, including search engines. It's removed when the section unlocks.
-- **The price comes from Dhali**, from your API's settings, so it can't drift from what's actually charged.
-- **Elements added later work too.** You can create `<dhali-premium>` elements after the page loads, but set `api` and `path` before adding the element to the page.
-
-## Response formats
-
-### `html` (default)
-
-Your endpoint returns an HTML fragment. It replaces the teaser as ordinary page content, so your CSS applies and it looks native.
-
-```html
-<dhali-premium api="…" path="/articles/42">
-  <p class="teaser">The first paragraph…</p>
-</dhali-premium>
-```
-
-### `json`
-
-Your endpoint returns JSON. Put a `<template>` inside the element, and `{{field}}` placeholders are filled from the response. Use dots for nested values. Values are HTML-escaped.
-
-```html
-<dhali-premium api="…" path="/scores/core.json" format="json" label="Unlock score">
-  <p>A one-line verdict with holder and liquidity figures.</p>
-  <template>
-    <p>Verdict: <b>{{verdict.label}}</b> · Holders: <b>{{stats.holders}}</b></p>
-  </template>
-</dhali-premium>
-```
-
-To render the data yourself, leave out the `<template>` and listen for [`dhali:unlocked`](#events). In that case, the teaser stays until you replace it.
-
-## Styling
-
-- Unlocked content is wrapped in `<div class="dhali-premium-content">` inside the element, and is styled by your page's CSS.
-- `dhali-premium` is an ordinary element, so you can give it a margin, a border, or anything else.
-- The Unlock button sits in a Dhali frame that sizes itself to its contents. Its look is fixed, so visitors can recognise a real Dhali payment button.
-
-## Events
-
-Both events bubble from the element.
-
-| Event | `event.detail` | When |
-|---|---|---|
-| `dhali:unlocked` | `{ body, data, charge }` | The section unlocked. `body` is the response text, `data` is the parsed JSON (`format="json"` only), and `charge` is what the visitor paid, e.g. `"0.051187 XRP"`. |
-| `dhali:error` | `{ message }` | The unlock failed, for example because your endpoint returned an error. The button shows the message too. |
-
-```js
-document.addEventListener("dhali:unlocked", (e) => {
-  analytics.track("premium_unlock", { path: e.target.getAttribute("path"), charge: e.detail.charge });
-});
-```
-
-## Pricing
-
-- You set the price per unlock in app.dhali.io. Dhali charges the visitor's payment channel, and you're paid in XRP.
-- Each request also pays for the compute it uses, usually a fraction of a thousandth of an XRP. `charge` in `dhali:unlocked` shows the total.
-- Visitors approve a budget, not a single payment. Every unlock is deducted from it until it runs out. Then the button shows how much more is needed and reopens the wallet.
-- Dhali checks each approval against a worst-case cost, so visitors need to approve slightly more than one unlock's price.
-
-## Security
-
-- **The payment approval never reaches your page.** It lives in a frame on pay.dhali.io, so scripts on your page, including ads, analytics and compromised dependencies, can't spend it.
-- **Every payment needs a click inside the Dhali frame.** Your page can't trigger a payment.
-- **`premium.js` is pinned and hashed.** It's about 100 lines with no dependencies, and it's served from the public npm package, so you can [review](src/premium.js) exactly the file you load, or self-host it.
-- **Your endpoint answers only Dhali**, thanks to the header secret.
-
-Full details: [docs/how-it-works.md](docs/how-it-works.md).
-
-## Browser support
-
-Current versions of Chrome, Edge, Firefox and Safari, on desktop and mobile. `premium.js` uses custom elements and ES modules.
-
-The first unlock opens the wallet in a popup. If a browser blocks it, the button asks the visitor to allow popups.
+That's it. To change the button text, use JSON responses, react to unlocks or style the content, see the [reference](docs/reference.md).
 
 ## Try it locally
 
-Run the whole flow on your machine with Node.js 20+ and no dependencies:
+With Node.js 20+:
 
 ```sh
 npm run dev
 ```
 
-Open http://localhost:4000 and click **Unlock report**. This runs the [Ledgerlight example](examples/ledgerlight/) with a local stand-in for the Dhali wallet and proxy. The stand-in wallet doesn't need a real wallet or real XRP.
+Open http://localhost:4000 and click **Unlock report**. This runs the [Ledgerlight example](examples/ledgerlight/) site against a local stand-in for Dhali, so you don't need a real wallet or funds.
 
-## Examples
+## Pricing
 
-| Example | |
-|---|---|
-| [Ledgerlight](examples/ledgerlight/) | A complete site selling XRPL token risk reports from live ledger data. It uses both formats. |
-| [Cloudflare Worker](examples/cloudflare-worker/) | Static premium files, no server. |
-| [Express](examples/express/) | Protect routes in a Node.js app. |
-| [FastAPI](examples/fastapi/) | Protect routes in a Python app. |
+- You set the price per unlock. Each unlock also carries a small compute fee.
+- Visitors approve a small budget, slightly more than one unlock, and later unlocks draw from it. When it runs out, the button asks them to top up.
+
+## Security
+
+- **Your page never handles payments.** The payment approval stays inside a Dhali frame, so no script on your page can spend it or trigger a payment.
+- **The script is small, public and pinned.** The `integrity` hash stops the browser running it if it ever changes. [Read the source](src/premium.js).
+- **Your content only goes to paying visitors**, because your URL refuses requests without Dhali's secret header.
+
+More detail: [How it works](docs/how-it-works.md#security).
 
 ## FAQ
 
 **Do my visitors need a Dhali account?**
-No. They need an XRPL wallet. The Dhali wallet walks them through approving a payment.
+No, just a crypto wallet that holds the currency you charge in. The Dhali wallet guides them through the rest.
 
 **Do I handle payments, keys or webhooks?**
-No. Dhali checks every payment before your endpoint is called. Your endpoint only checks the header secret.
+No. Dhali checks every payment before your content is fetched.
 
-**Can I use one API for many sections?**
-Yes. Use a different `path` for each section. Every section on the API has the same price; use separate APIs for different prices.
+**Can I charge different prices for different sections?**
+Every section on one API has the same price. Create a separate API for each price.
 
 **Will search engines see my premium content?**
-No. They see the teaser, so write it with that in mind.
+No, only the teaser. Write it with that in mind.
 
-**Can I host `premium.js` myself?**
-Yes. Download the exact version from pay.dhali.io, serve it from your site, and keep the same `integrity` value. The button frame always comes from pay.dhali.io.
-
-**Does it work in single-page apps?**
-Yes. `<dhali-premium>` is a standard custom element, so it works anywhere you can render HTML, including React, Vue and Svelte. Load the script once.
+**Does it work with React, Vue and other frameworks?**
+Yes. It's a standard HTML element, so it works anywhere you can add HTML and a script tag.
 
 ---
 
-Maintaining this package? See [docs/maintainers.md](docs/maintainers.md). Changes are listed in the [CHANGELOG](CHANGELOG.md).
+[Reference](docs/reference.md) · [How it works](docs/how-it-works.md) · [Examples](examples/) · [Changelog](CHANGELOG.md) · [Maintainers](docs/maintainers.md)
