@@ -47,4 +47,4 @@ PARTNER_SECRET=$(openssl rand -hex 32) PORT=4003 node examples/ledgerlight/backe
 | `PARTNER_SECRET_HEADER` | `x-partner-secret` |
 | `PORT` | `4003` |
 
-To take it live, host the backend somewhere public, register its URL as a Dhali API, and put that API's ID into the page. The [main README](../../README.md#quick-start) covers each step.
+To take it live, host the backend somewhere public, register its URL as a Dhali API, and put that API's ID into the page. The [main README](../../README.md#get-started) covers each step.
