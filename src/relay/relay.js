@@ -193,6 +193,8 @@
   const openWallet = () => {
     const url = new URL(cfg.walletUrl, location.href);
     url.searchParams.set("uuids", api);
+    // Tells the wallet its visitor is paying for content, not calling an API.
+    url.searchParams.set("source", "premium");
     popup = window.open(url, POPUP_NAME, "popup,width=480,height=780");
     if (!popup) {
       return setState("idle", {
