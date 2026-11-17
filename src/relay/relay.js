@@ -149,7 +149,7 @@
 
     if (res.status === 402) {
       const note = await explain402(res);
-      return setState("needs-approval", { button: "Approve more XRP", note, warn: true });
+      return setState("needs-approval", { button: `Approve more ${code}`, note, warn: true });
     }
     const charge = res.headers.get(CHARGE_HEADER);
     if (!res.ok) {
@@ -272,7 +272,7 @@
     } catch {
       return setState("error", { note: "Premium content is unavailable right now.", warn: true });
     }
-    setState("idle", { button: `${label} · ${price}`, note: "Paid in XRP from your wallet" });
+    setState("idle", { button: `${label} · ${price}`, note: `Paid in ${code} from your wallet` });
   };
 
   start();
