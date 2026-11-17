@@ -56,6 +56,10 @@ try {
     (await firstFrame.$eval("#action", (b) => getComputedStyle(b).backgroundColor)) === "rgb(37, 99, 235)",
     "relay.css loads under the relay's CSP"
   );
+  check(
+    (await firstFrame.$eval("#note", (n) => n.textContent)) === "Paid in XRP from your wallet",
+    "names the API's currency under the button"
+  );
 
   console.log("First unlock");
   const popupP = new Promise((r) => browser.once("targetcreated", r));
@@ -139,6 +143,7 @@ try {
     lastNote = await frame.$eval("body", (b) => b.innerText).catch(() => "");
   }
   check(/needs about [\d.]+ XRP more/.test(lastNote), "button says how much more to approve");
+  check(/Approve more XRP/.test(lastNote), "top-up button names the API's currency");
   browser.off("targetcreated", count);
 
   console.log("Isolation and layout");

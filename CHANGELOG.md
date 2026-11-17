@@ -2,6 +2,12 @@
 
 Package versions. Each notes the `premium.js` version it ships (`premiumJs` in `package.json`). Published `premium.js` versions are immutable: partners pin them with an integrity hash.
 
+## 1.1.2 (2026-11-17)
+
+`premium.js` v1.0.0 (unchanged).
+
+- Relay: the note under the button and the top-up button name the API's currency, instead of always saying XRP. An RLUSD-priced section said "Paid in XRP from your wallet".
+
 ## 1.1.1 (2026-11-16)
 
 `premium.js` v1.0.0 (unchanged). The v1.1.0 tag was pushed without the version bump, so 1.1.0 was never published; this is that release.

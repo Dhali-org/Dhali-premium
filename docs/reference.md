@@ -66,7 +66,7 @@ document.addEventListener("dhali:unlocked", (e) => {
 ## Loading the script
 
 - **Keep the `integrity` attribute.** It makes the browser refuse to run the script if the file ever changes.
-- **CDN:** `premium.js` comes from the [`dhali-premium`](https://www.npmjs.com/package/dhali-premium) npm package, through jsDelivr. The same file is at `https://unpkg.com/dhali-premium@1.1.1/releases/v1.0.0/premium.js`, with the same hash, if you prefer unpkg.
+- **CDN:** `premium.js` comes from the [`dhali-premium`](https://www.npmjs.com/package/dhali-premium) npm package, through jsDelivr. The same file is at `https://unpkg.com/dhali-premium@1.1.2/releases/v1.0.0/premium.js`, with the same hash, if you prefer unpkg.
 - **Self-hosting:** copy the file from the npm package to your own server and keep the same `integrity` value. The button frame always comes from pay.dhali.io.
 - **Content-Security-Policy:** allow the CDN (or your own origin) in `script-src` and `https://pay.dhali.io` in `frame-src`.
 - **Single-page apps:** `<dhali-premium>` is a standard custom element, so it works anywhere you can render HTML, including React, Vue and Svelte. Load the script once.
