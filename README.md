@@ -51,7 +51,7 @@ Make it accept only requests from Dhali, so nobody can skip payment. Dhali adds 
 Add the script once, then one element per premium section:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/dhali-premium@1.1.2/releases/v1.0.0/premium.js"
+<script src="https://cdn.jsdelivr.net/npm/dhali-premium@1.2.0/releases/v1.0.0/premium.js"
         integrity="sha384-eIiADuK4VnchTIWmxyyl8HWjzB/woYmitFYvfXAiX1RKMQQStC+Gvt0mbh0vkaLD"
         crossorigin="anonymous" type="module" async></script>
 

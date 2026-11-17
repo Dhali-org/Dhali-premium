@@ -2,6 +2,15 @@
 
 Package versions. Each notes the `premium.js` version it ships (`premiumJs` in `package.json`). Published `premium.js` versions are immutable: partners pin them with an integrity hash.
 
+## 1.2.0 (2026-11-17)
+
+`premium.js` v1.0.0 (unchanged).
+
+- Relay: when a saved approval will pay, the section says which wallet it pays from ("Paying from rXXXX…YYYY") and offers **Change**, which forgets the approval and opens the wallet. Before, the only way to switch wallets was to clear the browser's site data for pay.dhali.io. Change never pays: the new approval is saved for the next unlock, and an unlocked section stays unlocked.
+- Relay: when Dhali refuses the saved approval, the section says so and shows Dhali's own explanation in a collapsed **Details from Dhali** box. It used to pick amounts out of that message, which broke for version 2 claims (every current wallet): Dhali gives their amounts in whole units ("0.25 XRP"), so the section asked for 0.000001 XRP more. The saved approval is no longer forgotten on a refusal; approving in the wallet replaces it.
+- Relay: a failed unlock says "This unlock didn't go through (error N). You weren't charged the unlock price. Try again.", with any JSON `detail` in a collapsed **Details** box. It used to say "The premium service returned an error" and "You paid only for compute" every time, but the error can come from Dhali itself, some failures cost nothing, and the proxy doesn't let browsers read the charge on errors. The compute charge is mentioned only when it can be read and is above zero.
+- Sandbox: the mock proxy's refusal message matches the real proxy for version 1 and version 2 claims. On a partner error it passes the partner's status and body through without exposing the charge, as the real proxy does.
+
 ## 1.1.2 (2026-11-17)
 
 `premium.js` v1.0.0 (unchanged).

@@ -28,15 +28,25 @@
   const $action = document.getElementById("action");
   const $note = document.getElementById("note");
   const $badge = document.getElementById("badge");
+  const $wallet = document.getElementById("wallet");
+  const $walletAccount = document.getElementById("wallet-account");
+  const $change = document.getElementById("change");
+  const $details = document.getElementById("details");
+  const $detailsText = document.getElementById("details-text");
+  const $detailsLabel = document.getElementById("details-label");
 
   let state = "loading";
   let scale = 6;
   let code = "XRP";
   let popup = null;
-  let visibleSince = null;
   let memoryClaim = null;
   let price = "";
   let freshClaim = false; // the claim just came from the wallet window
+  // What a new claim from the wallet window is for: "pay" unlocks straight
+  // away; "switch" (from Change) only saves it and goes back to `returnTo`.
+  let walletMode = "pay";
+  let returnTo = "idle";
+  let unlockedNote = "";
 
   // ---------- host page messaging ----------
   const toHost = (msg) => parent.postMessage(JSON.stringify(msg), "*");
@@ -67,6 +77,14 @@
   };
 
   // ---------- helpers ----------
+  // A claim is base64 JSON (or plain JSON) from the wallet.
+  const parseClaim = (claim) => {
+    try { return JSON.parse(atob(claim)); } catch {}
+    try { return JSON.parse(claim); } catch {}
+    return null;
+  };
+  const shortAccount = (a) => (a.length > 14 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
+
   const toUnits = (minor) => {
     const n = Number(minor) / 10 ** scale;
     return `${+n.toFixed(scale)} ${code}`;
@@ -84,8 +102,16 @@
     return url;
   };
 
-  const setState = (next, { note = "", warn = false, button = null, badge = null } = {}) => {
+  const setState = (
+    next,
+    { note = "", warn = false, button = null, badge = null, details = null, detailsLabel = "Details from Dhali" } = {}
+  ) => {
     state = next;
+    // Dhali's own explanation, collapsed. Text only, like everything here.
+    $details.hidden = details === null;
+    $detailsText.textContent = details ?? "";
+    $detailsLabel.textContent = detailsLabel;
+    if (details === null) $details.open = false;
     $action.hidden = button === null;
     if (button !== null) {
       $action.textContent = button;
@@ -95,37 +121,61 @@
     if (badge !== null) $badge.textContent = badge;
     $note.textContent = note;
     $note.className = warn ? "note warn" : "note";
-    reportSize();
+    renderWallet();
   };
 
-  const fail = (message) => {
-    setState("idle", { button: `${label} · ${price}`, note: message, warn: true });
+  // ---------- saved wallet ----------
+  // Which wallet the saved approval pays from, with a way to switch. Shown
+  // whenever there's a saved approval and the section isn't busy, including
+  // after an unlock: Change only switches the wallet, it never pays.
+  const renderWallet = () => {
+    const claim = claims.get();
+    const account = claim ? parseClaim(claim)?.account : null;
+    const show = !!claim && (state === "idle" || state === "needs-approval" || state === "unlocked");
+    $wallet.hidden = !show;
+    if (show) {
+      $walletAccount.textContent =
+        typeof account === "string" && account ? `Paying from ${shortAccount(account)}` : "Paying from a saved approval";
+    }
+    reportSize();
+  };
+  // Every section on the page shares the saved approval, so keep them in step
+  // when another section saves or forgets one.
+  window.addEventListener("storage", (e) => {
+    if (e.key === CLAIM_KEY || e.key === null) renderWallet();
+  });
+
+  // The details of a failed unlock may be the partner's server's words, not
+  // Dhali's, so they get a neutral label.
+  const fail = (message, details = null) => {
+    setState("idle", { button: `${label} · ${price}`, note: message, warn: true, details, detailsLabel: "Details" });
     toHost({ type: "dhali:error", message });
+  };
+
+  // Dhali's JSON {detail}, if the body is one, with the indentation the
+  // proxy's source leaves in tidied and paragraph breaks kept. Anything else
+  // (such as a partner's HTML error page passed through) gives "".
+  const dhaliDetail = (text) => {
+    let detail = "";
+    try { detail = String(JSON.parse(text).detail ?? ""); } catch {}
+    return detail
+      .split(/\n\s*\n/)
+      .map((p) => p.replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+      .join("\n\n");
   };
 
   // ---------- 402 handling ----------
   // Dhali returns an HTML page when no claim is sent, and JSON {detail} when
-  // the claim is invalid or does not cover the request. The "not sufficient"
-  // detail says how much was authorised and how much this request could need.
+  // the saved approval is refused: it doesn't cover the request, it's invalid,
+  // or its channel is closed. The relay doesn't interpret the detail, whose
+  // wording changes between proxy versions; it shows it as Dhali wrote it, in
+  // a collapsed box. Either way the fix is a new approval in the wallet, which
+  // replaces the saved one.
   const explain402 = async (res) => {
-    const text = await res.text();
-    let detail = "";
-    try { detail = String(JSON.parse(text).detail ?? ""); } catch {}
-    const authorised = /authorized to pull\s+(\d+)/i.exec(detail);
-    const needed = /as much as\s+(\d+)/i.exec(detail);
-    if (authorised && needed) {
-      const shortfall = Math.max(Number(needed[1]) - Number(authorised[1]), 1);
-      return `This unlock needs about ${toUnits(shortfall)} more. Approve more in your wallet to continue.`;
-    }
-    if (/channel is closed/i.test(detail)) {
-      claims.clear();
-      return "Your payment channel is closed. Open a new one in your wallet.";
-    }
-    if (detail) {
-      claims.clear();
-      return "Your saved approval is no longer valid. Approve again in your wallet.";
-    }
-    return "Approve a payment in your wallet to continue.";
+    const detail = dhaliDetail(await res.text());
+    if (!detail) return { note: "Approve a payment in your wallet to continue." };
+    return { note: "Your saved approval doesn't cover this unlock. Approve more in your wallet to continue.", details: detail };
   };
 
   // ---------- paid request ----------
@@ -148,25 +198,43 @@
     }
 
     if (res.status === 402) {
-      const note = await explain402(res);
-      return setState("needs-approval", { button: `Approve more ${code}`, note, warn: true });
+      const { note, details = null } = await explain402(res);
+      return setState("needs-approval", { button: `Approve more ${code}`, note, warn: true, details });
     }
     const charge = res.headers.get(CHARGE_HEADER);
     if (!res.ok) {
-      // Dhali still charges the compute a failed request used, not the price.
-      const paid = charge ? `You paid ${toUnits(charge)} for compute` : "You paid only for compute";
-      return fail(`The premium service returned an error (${res.status}). ${paid}, not the unlock price.`);
+      // The error may come from the partner's server (passed through) or from
+      // Dhali itself (400, 429, 500), so don't say which. Dhali never charges
+      // the unlock price for a failed request; at most the compute it used.
+      // The proxy doesn't expose the charge header on errors today, so the
+      // amount is only mentioned if the browser can actually read it.
+      const compute = Number(charge);
+      const paid =
+        charge && compute > 0
+          ? `You paid ${toUnits(compute)} for compute, not the unlock price.`
+          : "You weren't charged the unlock price.";
+      const details = dhaliDetail(await res.text().catch(() => "")) || null;
+      return fail(`This unlock didn't go through (error ${res.status}). ${paid} Try again.`, details);
     }
 
     const body = await res.text();
     toHost({ type: "dhali:content", body, charge: charge ? toUnits(charge) : null });
     const paid = charge ? `Paid ${toUnits(charge)}` : "";
     const note = fromSaved ? `${paid || "Paid"} from your saved approval` : paid;
+    unlockedNote = note;
     setState("unlocked", { badge: "✓ Unlocked", note });
     const left = await remaining(claim);
     if (left !== null && state === "unlocked") {
-      setState("unlocked", { badge: "✓ Unlocked", note: `${note} · ${toUnits(left)} left` });
+      unlockedNote = `${note} · ${toUnits(left)} left`;
+      setState("unlocked", { badge: "✓ Unlocked", note: unlockedNote });
     }
+  };
+
+  // Back to where Change was clicked: still unlocked, or ready to unlock.
+  const restore = (note, warn = false) => {
+    walletMode = "pay";
+    if (returnTo === "unlocked") return setState("unlocked", { badge: "✓ Unlocked", note: note ?? unlockedNote, warn });
+    setState("idle", { button: `${label} · ${price}`, note: note ?? "", warn });
   };
 
   // ---------- remaining approval ----------
@@ -175,8 +243,7 @@
   // endpoint (the local mock does); otherwise null and the note stays as is.
   const remaining = async (claim) => {
     if (!cfg.devChannelsUrl) return null;
-    let parsed = null;
-    try { parsed = JSON.parse(atob(claim)); } catch { try { parsed = JSON.parse(claim); } catch {} }
+    const parsed = parseClaim(claim);
     const authorised = Number(parsed?.authorized_to_claim);
     if (!parsed?.channel_id || !Number.isFinite(authorised)) return null;
     try {
@@ -190,24 +257,27 @@
   };
 
   // ---------- wallet popup ----------
-  const openWallet = () => {
+  const openWallet = (mode = "pay") => {
+    walletMode = mode;
     const url = new URL(cfg.walletUrl, location.href);
     url.searchParams.set("uuids", api);
     // Tells the wallet its visitor is paying for content, not calling an API.
     url.searchParams.set("source", "premium");
     popup = window.open(url, POPUP_NAME, "popup,width=480,height=780");
+    const blocked = "Your browser blocked the wallet window. Allow pop-ups for this site and try again.";
     if (!popup) {
-      return setState("idle", {
-        button: `${label} · ${price}`,
-        note: "Your browser blocked the wallet window. Allow pop-ups for this site and try again.",
-        warn: true,
-      });
+      if (mode === "switch") return restore(blocked, true);
+      return setState("idle", { button: `${label} · ${price}`, note: blocked, warn: true });
     }
-    setState("waiting", { button: "Waiting for wallet…", note: "Approve the payment in the wallet window." });
+    setState("waiting", {
+      button: "Waiting for wallet…",
+      note: mode === "switch" ? "Choose a wallet and approve in the wallet window. Nothing is charged now." : "Approve the payment in the wallet window.",
+    });
     const watch = setInterval(() => {
       if (state !== "waiting") return clearInterval(watch);
       if (popup.closed) {
         clearInterval(watch);
+        if (walletMode === "switch") return restore("Wallet closed. You'll choose a wallet at your next unlock.");
         setState("idle", { button: `${label} · ${price}`, note: "Wallet closed before a payment was approved." });
       }
     }, 500);
@@ -224,10 +294,10 @@
     try {
       event.source.postMessage(JSON.stringify({ type: "dhali:claim-received" }), WALLET_ORIGIN);
     } catch {}
-    if (state === "waiting") {
-      freshClaim = true;
-      request();
-    }
+    if (state !== "waiting") return;
+    if (walletMode === "switch") return restore("Wallet changed. It pays for your next unlock.");
+    freshClaim = true;
+    request();
   });
 
   // ---------- click handling ----------
@@ -239,19 +309,39 @@
   // transformed. Other browsers fall back to isIntersecting, which only knows
   // the button is inside the viewport, so there the guard stops last-instant
   // scrolling or moving of the frame, not an overlay drawn on top of it.
+  const visibleSince = new Map([[$action, null], [$change, null]]);
   const io = new IntersectionObserver(
-    ([entry]) => {
-      const visible = "isVisible" in entry ? entry.isVisible : entry.isIntersecting;
-      visibleSince = visible ? (visibleSince ?? performance.now()) : null;
+    (entries) => {
+      for (const entry of entries) {
+        const visible = "isVisible" in entry ? entry.isVisible : entry.isIntersecting;
+        visibleSince.set(entry.target, visible ? (visibleSince.get(entry.target) ?? performance.now()) : null);
+      }
     },
     { threshold: [0, 1], trackVisibility: true, delay: 100 }
   );
   io.observe($action);
+  io.observe($change);
+  const clickable = (el) => {
+    const since = visibleSince.get(el);
+    return since !== null && performance.now() - since >= VISIBLE_MS;
+  };
 
   $action.addEventListener("click", () => {
-    if (visibleSince === null || performance.now() - visibleSince < VISIBLE_MS) return;
+    if (!clickable($action)) return;
     if (state === "idle") request();
     else if (state === "needs-approval") openWallet();
+  });
+
+  // Forget the saved approval and pick a wallet again. This never pays: the
+  // new approval is saved for the next unlock. If the visitor closes the
+  // wallet without approving, no approval is left saved, which is also how to
+  // stop a shared computer paying from your wallet.
+  $change.addEventListener("click", () => {
+    if (!clickable($change)) return;
+    if (state !== "idle" && state !== "needs-approval" && state !== "unlocked") return;
+    returnTo = state === "unlocked" ? "unlocked" : "idle";
+    claims.clear();
+    openWallet("switch");
   });
 
   // ---------- start ----------

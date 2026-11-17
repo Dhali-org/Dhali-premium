@@ -47,12 +47,23 @@ test("unparseable claim: 402 JSON", async () => {
   assert.match((await res.json()).detail, /can be parsed/);
 });
 
-test("claim below the worst case: 402 JSON with both amounts", async () => {
+test("claim below the worst case: 402 JSON with both amounts in XRP (version 2)", async () => {
   const res = await fetch(`${base}/run/${API}/x`, { headers: { "payment-claim": claim(RATE, "short") } });
   assert.equal(res.status, 402);
   const { detail } = await res.json();
-  assert.match(detail, new RegExp(`authorized to pull ${RATE}\\b`));
-  assert.match(detail, /COULD consume as much as\s+\d+/);
+  assert.match(detail, /authorized to pull 0\.05\s+XRP from/);
+  assert.match(detail, /COULD consume as much as\s+0\.0567\d*\s+XRP/);
+});
+
+test("claim below the worst case: 402 JSON with both amounts in drops (version 1)", async () => {
+  const v1 = Buffer.from(
+    JSON.stringify({ version: "1", channel_id: "short-v1", authorized_to_claim: String(RATE), signature: "00" })
+  ).toString("base64");
+  const res = await fetch(`${base}/run/${API}/x`, { headers: { "payment-claim": v1 } });
+  assert.equal(res.status, 402);
+  const { detail } = await res.json();
+  assert.match(detail, new RegExp(`authorized to pull ${RATE} from`));
+  assert.match(detail, /COULD consume as much as\s+56700\b/);
 });
 
 test("valid claim: forwards with the header secret, not the claim, and reports the charge", async () => {
@@ -64,9 +75,12 @@ test("valid claim: forwards with the header secret, not the claim, and reports t
   assert.equal(res.headers.get("access-control-allow-origin"), "*");
 });
 
-test("upstream error becomes a 500", async () => {
+test("upstream error passes through, with the charge set but not exposed to browsers", async () => {
   const res = await fetch(`${base}/run/${API}/fail`, { headers: { "payment-claim": claim(1_000_000, "err") } });
   assert.equal(res.status, 500);
+  assert.equal(res.headers.get("access-control-allow-origin"), "*");
+  assert.equal(res.headers.get("access-control-expose-headers"), null);
+  assert.match(res.headers.get("dhali-latest-request-charge") ?? "", /^\d+$/);
 });
 
 test("CORS preflight allows Payment-Claim", async () => {
