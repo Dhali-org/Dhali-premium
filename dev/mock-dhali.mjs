@@ -104,12 +104,21 @@ export function createMockDhali(apis) {
     const toClaim = (channels.get(claim.channel_id) ?? 0) + maxCost;
     const authorised = Number(claim.authorized_to_claim);
     if (authorised < toClaim) {
-      return json(res, 402, {
-        detail: `Your payment claim is not sufficient to fund this request.\n\n
+      const scale = Number(claim.currency?.scale ?? 6);
+      const codeName = claim.currency?.code ?? "XRP";
+      const detail =
+        claim.version === "2"
+          ? `Your payment claim is not sufficient to fund this request.\n\n
+            It was authorized to pull ${authorised / 10 ** scale}
+            ${codeName} from your payment channel.\n\n
+            However, Dhali has determined that this request COULD consume as much as
+            ${toClaim / 10 ** scale}
+            ${codeName} (note, Dhali may over-estimate this for our user's safety).`
+          : `Your payment claim is not sufficient to fund this request.\n\n
             It was authorized to pull ${authorised} from your payment channel.
             However, Dhali has determined that this request COULD consume as much as
-            ${Math.ceil(toClaim)} (note, Dhali may over-estimate this for our user's safety).`,
-      });
+            ${Math.ceil(toClaim)} (note, Dhali may over-estimate this for our user's safety).`;
+      return json(res, 402, { detail });
     }
 
     const start = performance.now();
@@ -128,19 +137,22 @@ export function createMockDhali(apis) {
         },
       });
     } catch {
-      return json(res, 502, { detail: "Upstream API unreachable" });
+      // As the real proxy: its own 500, charge not exposed to browsers.
+      return json(res, 500, { detail: "An unexpected error occured with Dhali. Please try again." }, {
+        [CHARGE_HEADER]: "0",
+      });
     }
     const runtimeMs = performance.now() - start;
     const body = Buffer.from(await upstream.arrayBuffer());
 
     if (!(upstream.status >= 200 && upstream.status < 400)) {
-      // Failed requests only pay compute, as in the real proxy.
+      // As the real proxy (http_proxy.py): failed requests only pay compute,
+      // and the upstream's status and body pass straight through. The charge
+      // header is set but not exposed, so a browser can't read it.
       const compute = Math.ceil(COMPUTE_COST_PER_MS * runtimeMs);
       channels.set(claim.channel_id, (channels.get(claim.channel_id) ?? 0) + compute);
-      return json(res, 500, { detail: `Upstream returned ${upstream.status}` }, {
-        [CHARGE_HEADER]: String(compute),
-        "access-control-expose-headers": `${CHARGE_HEADER}, Dhali-Total-Requests-Charge`,
-      });
+      res.writeHead(upstream.status, { ...cors, [CHARGE_HEADER]: String(compute) });
+      return res.end(body);
     }
 
     const actual = Math.ceil(COMPUTE_COST_PER_MS * runtimeMs + api.rate * (1 + DHALI_FEE));

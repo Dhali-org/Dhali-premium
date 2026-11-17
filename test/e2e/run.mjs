@@ -130,9 +130,36 @@ try {
   check(/Verdict: \S/.test(await cardText(2)), "template filled from JSON");
   check(/^\d+(\.\d+)? XRP$/.test(await unlocked), "dhali:unlocked reports the charge");
 
+  console.log("Failed unlock");
+  // The partner's server refuses a bad issuer with a plain-text 400, which the
+  // proxy passes through without exposing the compute charge.
+  const errors = [];
+  await page.exposeFunction("recordError", (m) => errors.push(m));
+  await page.evaluate(() => {
+    document.addEventListener("dhali:error", (e) => window.recordError(e.detail.message));
+    const el = document.createElement("dhali-premium");
+    el.setAttribute("api", document.querySelector("dhali-premium").getAttribute("api"));
+    el.setAttribute("path", "/reports/not-an-address/RLUSD");
+    el.innerHTML = "<p>Teaser for a report that will fail</p>";
+    document.body.append(el);
+  });
+  const failIndex = (await page.$$("dhali-premium iframe")).length - 1;
+  const failFrame = await (await page.$$("dhali-premium iframe"))[failIndex].contentFrame();
+  await failFrame.waitForFunction(() => document.getElementById("action").textContent.includes("·"), { timeout: 10000 });
+  await clickUnlock(failIndex);
+  await failFrame.waitForFunction(() => /didn't go through/.test(document.getElementById("note").textContent), { timeout: 10000 });
+  const failNote = await failFrame.$eval("#note", (n) => n.textContent);
+  check(
+    failNote === "This unlock didn't go through (error 400). You weren't charged the unlock price. Try again.",
+    `says it failed without blaming anyone or inventing a charge ("${failNote}")`
+  );
+  check(await failFrame.$eval("#details", (d) => d.hidden), "no details box for a plain-text error");
+  check(errors.length === 1, "dhali:error reaches the page");
+  check(!(await failFrame.$eval("#action", (b) => b.hidden)), "the Unlock button stays, to try again");
+
   console.log("Approval runs out");
   let lastNote = "";
-  for (let n = 0; n < 3 && !/needs about/.test(lastNote); n++) {
+  for (let n = 0; n < 3 && !/doesn't cover/.test(lastNote); n++) {
     await page.$eval("input[name=issuer]", (e) => (e.value = "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De"));
     await page.$eval("input[name=currency]", (e) => (e.value = "RLUSD"));
     await page.click("form button");
@@ -142,9 +169,64 @@ try {
     const frame = await (await page.$("dhali-premium iframe")).contentFrame();
     lastNote = await frame.$eval("body", (b) => b.innerText).catch(() => "");
   }
-  check(/needs about [\d.]+ XRP more/.test(lastNote), "button says how much more to approve");
+  check(/Your saved approval doesn't cover this unlock/.test(lastNote), "says the approval doesn't cover the unlock");
+  // Dhali's own message, collapsed until opened.
+  const topUp = await (await page.$("dhali-premium iframe")).contentFrame();
+  check(
+    await topUp.$eval("#details", (d) => !d.hidden && !d.open),
+    "Dhali's explanation is there, collapsed"
+  );
+  check(
+    /authorized to pull 0\.\d+ XRP from your payment channel/.test(await topUp.$eval("#details-text", (p) => p.textContent)),
+    "the explanation is Dhali's message as written"
+  );
   check(/Approve more XRP/.test(lastNote), "top-up button names the API's currency");
   browser.off("targetcreated", count);
+
+  console.log("Change wallet");
+  // A real mouse click on section i's Change link, after the clickjacking guard.
+  const clickChange = async (i) => {
+    const el = (await page.$$("dhali-premium iframe"))[i];
+    await el.scrollIntoView();
+    await sleep(700);
+    const frameBox = await el.boundingBox();
+    const r = await (await el.contentFrame()).$eval("#change", (e) => {
+      const b = e.getBoundingClientRect();
+      return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+    });
+    await page.mouse.click(frameBox.x + r.x, frameBox.y + r.y);
+  };
+
+  // From an unlocked section: Change switches the wallet and never pays.
+  const unlockedRelay = await (await page.$$("dhali-premium iframe"))[1].contentFrame();
+  check(!(await unlockedRelay.$eval("#wallet", (e) => e.hidden)), "an unlocked section still shows the wallet");
+  let unlocks = 0;
+  await page.exposeFunction("countUnlock", () => unlocks++);
+  await page.evaluate(() => document.addEventListener("dhali:unlocked", () => window.countUnlock()));
+  const switchPopupP = new Promise((r) => browser.once("targetcreated", r));
+  await clickChange(1);
+  const switchPopup = await (await switchPopupP).page();
+  await switchPopup.waitForSelector("#claim-btn", { visible: true });
+  await switchPopup.click("#claim-btn");
+  await unlockedRelay.waitForFunction(() => /Wallet changed/.test(document.getElementById("note").textContent), { timeout: 10000 });
+  check(!(await unlockedRelay.$eval("#badge", (e) => e.hidden)), "switching keeps the section unlocked");
+  await sleep(1000);
+  check(unlocks === 0, "switching the wallet doesn't unlock or charge again");
+
+  // From a section that needs a top-up: Change, then close the wallet.
+  const relay = await (await page.$("dhali-premium iframe")).contentFrame();
+  check(
+    /^Paying from rMockV…\w{4}$/.test(await relay.$eval("#wallet-account", (e) => e.textContent)),
+    "shows which wallet the saved approval pays from"
+  );
+  const changePopupP = new Promise((r) => browser.once("targetcreated", r));
+  await clickChange(0);
+  const changePopup = await (await changePopupP).page();
+  check(!!changePopup, "Change opens the wallet");
+  check((await relay.evaluate(() => localStorage.getItem("dhali.premium.claim"))) === null, "Change forgets the saved approval");
+  await changePopup.close();
+  await relay.waitForFunction(() => /Wallet closed/.test(document.getElementById("note").textContent), { timeout: 5000 });
+  check(await relay.$eval("#wallet", (e) => e.hidden), "no wallet line once the approval is forgotten");
 
   console.log("Isolation and layout");
   check((await page.evaluate(() => Object.keys(localStorage).length)) === 0, "partner page storage holds no claim");

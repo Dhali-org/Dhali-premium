@@ -43,7 +43,7 @@ Make it accept only requests from Dhali, so nobody can skip payment. Dhali adds 
 
 1. Open [app.dhali.io](https://app.dhali.io) and link your wallet. Your earnings go here.
 2. Go to **My Assets** → **Create**, open the new API and click **Edit**.
-3. Set the **Base URL** (your URL from step 1), the **Pricing** (currency and price per unlock), and the **Header secret** (a name and a long random value, e.g. from `openssl rand -hex 32`).
+3. Set the **API base URL** (your URL from step 1), the pricing (currency and price per unlock), and an **API header** (a name and a long random value, e.g. from `openssl rand -hex 32`).
 4. Save, and copy the API's ID from its endpoint URL: `https://run.api.dhali.io/<api-id>`.
 
 ### 3. Add it to your page
@@ -51,7 +51,7 @@ Make it accept only requests from Dhali, so nobody can skip payment. Dhali adds 
 Add the script once, then one element per premium section:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/dhali-premium@1.1.2/releases/v1.0.0/premium.js"
+<script src="https://cdn.jsdelivr.net/npm/dhali-premium@1.2.0/releases/v1.0.0/premium.js"
         integrity="sha384-eIiADuK4VnchTIWmxyyl8HWjzB/woYmitFYvfXAiX1RKMQQStC+Gvt0mbh0vkaLD"
         crossorigin="anonymous" type="module" async></script>
 

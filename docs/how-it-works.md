@@ -42,7 +42,7 @@ sequenceDiagram
 2. **First unlock on your site:** the visitor clicks, and the wallet opens in a popup showing your API's name and price. The visitor approves an amount, for example 0.25 XRP. The wallet sends the signed claim to the relay and closes.
 3. The relay calls `run.api.dhali.io/<api><path>` with the claim. Dhali forwards the request to `<your base URL><path>`, adding your header secret.
 4. Your endpoint responds. The relay passes the body to `premium.js`, which replaces the teaser with it.
-5. **Later unlocks on your site** reuse the stored claim, so they take one click with no popup.
+5. **Later unlocks on your site** reuse the stored claim, so they take one click with no popup. Under the button, the section shows which wallet the claim pays from, with a **Change** link that forgets the claim and opens the wallet again.
 6. When the approved amount runs out, Dhali refuses the request and says how much more is needed. The button shows that amount and reopens the wallet when clicked.
 
 ## Security
